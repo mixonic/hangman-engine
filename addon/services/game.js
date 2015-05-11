@@ -5,92 +5,85 @@ const PLAYING = () => {};
 const WON = () => {};
 const LOST = () => {};
 
+const bodyParts = [
+  'head',
+  'body',
+  'leftArm',
+  'rightArm',
+  'leftLeg',
+  'rightLeg'
+];
+
 export default Ember.Service.extend(Ember.Evented, {
 
   init() {
-    this._state = WAITING;
+    this.set('_state', WAITING);
     this.reset();
   },
 
   playLetter(rawLetter) {
     var letter = rawLetter.toLowerCase();
-
-    var guessedLetter = Ember.keys(this._guessedLetterMap).find((l) => {
-      return l === letter;
-    });
+    var guessedLetter = this._word.indexOf(letter) !== -1;
 
     if (guessedLetter) {
-      this._guessedLetterMap[guessedLetter] = true;
-      this.trigger('didGuessLetter', guessedLetter);
+      this.set('guessedLetters', this.get('guessedLetters').concat(letter));
     } else {
-      this._missedLetters.push(letter);
-      this.trigger('didMissLetter', letter);
+      this.set('missedLetters', this.get('missedLetters').concat(letter));
     }
 
     this.updateGame();
   },
 
+  showingBodyParts: Ember.computed('missedLetters', function() {
+    var misses = this.get('missedLetters.length');
+    var show = {};
+    for (var i=0; i<misses; i++) {
+      show[bodyParts[i]] = true;
+    }
+    return show;
+  }),
+
   playWord(word) {
-    this._state = PLAYING;
+    this.set('_state', PLAYING);
     this.reset();
     this._word = word.toLowerCase();
-    Ember.A(this._word.toLowerCase().split('')).uniq().forEach((l) => {
-      this._guessedLetterMap[l] = false;
-    });
   },
 
   reset() {
-    this._guessedLetterMap = {};
-    this._missedLetters = [];
-    this.trigger('didReset');
+    this.set('guessedLetters',[]);
+    this.set('missedLetters', []);
   },
 
   updateGame() {
-    if (this._state !== PLAYING) {
+    if (this.get('_state') !== PLAYING) {
       return;
     }
 
     if (this.isWordMissed()) {
-      this._state = LOST;
-      this.trigger('didLoseGame');
+      this.set('_state', LOST);
     } else if (this.isWordGuessed()) {
-      this._state = WON;
-      this.trigger('didWinGame');
+      this.set('_state', WON);
     }
   },
 
   isWordMissed() {
-    return this._missedLetters.length > 6;
+    return this.get('missedLetters').length >= bodyParts.length;
   },
 
   isWordGuessed() {
-    return Ember.keys(this._guessedLetterMap).every((l) => {
-      return this._guessedLetterMap[l];
-    });
+    var word = this._word;
+    var guessed = this.get('guessedLetters');
+    for (var i=0; i<word.length; i++) {
+      if (guessed.indexOf(word[i]) === -1) {
+        return false;
+      }
+    }
+    return true;
   },
 
-  updateGameFlags: Ember.on('didReset', 'didLoseGame', 'didWinGame', function(){
-    var state = {
-      isPlaying: false,
-      isWinning: false,
-      isLosing: false,
-      isWaiting: false
-    };
-    switch (this._state) {
-      case WAITING:
-        state.isWaiting = true;
-        break;
-      case PLAYING:
-        state.isPlaying = true;
-        break;
-      case WON:
-        state.isWinning = true;
-        break;
-      case LOST:
-        state.isLosing = true;
-        break;
-    }
-    this.setProperties(state);
-  })
+  isWaiting: Ember.computed.equal('_state', WAITING),
+  isPlaying: Ember.computed.equal('_state', PLAYING),
+  isWinning: Ember.computed.equal('_state', WON),
+  isLosing: Ember.computed.equal('_state', LOST)
 
 });
